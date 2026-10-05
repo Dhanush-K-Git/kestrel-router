@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kestrel request router</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#15181d;--card:#fff;--line:#d9dde3;--ok:#0a7a3d;--warn:#b45309;--accent:#1d4ed8}
+@media(prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e8eaee;--card:#1d2026;--line:#333842;--ok:#4ade80;--warn:#fbbf24;--accent:#7aa2ff}}
+body{margin:0;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:720px;margin:0 auto;padding:24px 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:13px;margin:10px 0 4px;opacity:.8}
+textarea,select{width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+button{margin-top:14px;padding:10px 18px;border:0;border-radius:6px;background:var(--accent);color:#fff;font:inherit;cursor:pointer}
+.team{font-size:28px;font-weight:700}.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:13px;border:1px solid}
+.ok{color:var(--ok)}.warn{color:var(--warn)}ul{margin:6px 0 0 18px;padding:0}.muted{opacity:.7;font-size:14px}
+</style></head><body><main>
+<h1>Service-request router</h1>
+<div class="card">
+<label for="text">Customer message</label>
+<textarea id="text" rows="3">installer did not turn up for room heater, i paid extra for this</textarea>
+<div class="row">
+<div><label for="product">Product (optional)</label><select id="product"><option value="">-</option><option>Water Purifier</option><option>Air Fryer</option><option>Mixer Grinder</option><option>Induction Cooktop</option><option>Room Heater</option><option>Ceiling Fan</option><option>Robot Vacuum</option></select></div>
+<div><label for="warranty">Warranty (optional)</label><select id="warranty"><option value="">-</option><option>in_warranty</option><option>shield</option><option>out_of_warranty</option></select></div>
+<div><label for="channel">Channel (optional)</label><select id="channel"><option value="">-</option><option>ivr</option><option>chat</option><option>whatsapp</option><option>email</option></select></div>
+</div>
+<button id="go">Route this request</button>
+</div>
+<div class="card" id="out" hidden>
+<div class="muted">Send to</div><div class="team" id="team"></div>
+<div><span class="pill" id="conf"></span></div>
+<p class="muted" style="margin-bottom:0">Why</p><ul id="reasons"></ul>
+<div id="notesWrap"><p class="muted" style="margin-bottom:0">Check before sending</p><ul id="notes"></ul></div>
+<p class="muted" id="alts"></p>
+</div>
+<p class="muted" id="err"></p>
+<script>
+const $=id=>document.getElementById(id);
+$('go').onclick=async()=>{
+  $('err').textContent='';
+  const body={request_text:$('text').value.trim()};
+  if(!body.request_text){$('err').textContent='Type a message first.';return}
+  for(const [k,id] of [['product_family','product'],['warranty_status','warranty'],['channel','channel']]) if($(id).value) body[k]=$(id).value;
+  try{
+    const r=await fetch('/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('Service returned '+r.status);
+    const d=await r.json();
+    $('out').hidden=false; $('team').textContent=d.team;
+    const c=$('conf'); c.textContent=Math.round(d.confidence*100)+'% sure'+(d.needs_human_check?' - needs a person to check':'');
+    c.className='pill '+(d.needs_human_check?'warn':'ok');
+    $('reasons').innerHTML=d.reasons.map(x=>'<li></li>').join(''); [...$('reasons').children].forEach((li,i)=>li.textContent=d.reasons[i]);
+    $('notes').innerHTML=d.notes.map(x=>'<li></li>').join(''); [...$('notes').children].forEach((li,i)=>li.textContent=d.notes[i]);
+    $('notesWrap').hidden=!d.notes.length;
+    $('alts').textContent='Next most likely: '+d.alternatives.map(a=>a.team+' ('+Math.round(a.probability*100)+'%)').join(', ');
+  }catch(e){$('err').textContent='Could not reach the routing service: '+e.message}
+};
+</script></main></body></html>

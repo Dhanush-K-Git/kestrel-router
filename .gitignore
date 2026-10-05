@@ -1,0 +1,8 @@
+# Customer data must not be published (Kestrel ops policy section 10)
+data/
+*.csv
+!predictions.csv
+!reports/*.csv
+__pycache__/
+.venv/
+venv/
